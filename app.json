@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        // "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#E6F4FE",
         // "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/tennis-clash.png"
         // "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -34,10 +34,7 @@
           "image": "./assets/images/tennis-clash.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
+          "backgroundColor": "#ffffff"
         }
       ]
     ],

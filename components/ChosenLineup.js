@@ -13,7 +13,7 @@ import { CARDS_DATA } from "../data/cardData";
 export default function ChosenLineup() {
   const { savedLevels } = useContext(LevelContext);
 
-  const [gameMode, setGameMode] = useState("grand-tour");
+  const [gameMode, setGameMode] = useState("grand-tour"); // "grand-tour" | "regular" | "tournament"
   const [levelCap, setLevelCap] = useState(15);
 
   const [minStats, setMinStats] = useState({
@@ -27,9 +27,24 @@ export default function ChosenLineup() {
 
   const [selectedLineup, setSelectedLineup] = useState(null);
 
+  // ---------------------------------------------------------
+  // 1. EFFET DE RESET (SYNCHRONISATION)
+  // ---------------------------------------------------------
+  // Dès que le mode change ou que la liste des résultats change,
+  // on désélectionne le lineup affiché pour éviter d'afficher un "fantôme" (ex: Kyrgios lvl 15 en mode Regular).
   useEffect(() => {
-    if (gameMode === "tournament") setLevelCap(9);
+    setSelectedLineup(null);
+  }, [gameMode, levelCap, minStats]);
+  // Note: On dépend ici des inputs, mais on pourrait dépendre de 'lineups' directement.
+
+  // ---------------------------------------------------------
+  // 2. GESTION DES CAPS PAR DÉFAUT
+  // ---------------------------------------------------------
+  useEffect(() => {
+    if (gameMode === "tournament") setLevelCap(9); // Junior par défaut
     if (gameMode === "grand-tour") setLevelCap(15);
+    // En regular, le cap est dynamique (Char + 2), mais on met 15 par défaut pour l'UI
+    if (gameMode === "regular") setLevelCap(15);
   }, [gameMode]);
 
   const handleMinStatChange = (stat, value) => {
@@ -37,9 +52,7 @@ export default function ChosenLineup() {
     setMinStats((prev) => ({ ...prev, [stat]: numericValue }));
   };
 
-  // ---------------------------------------------------------
-  // VERSION FELIX HALIM — STATS + LEVEL CAP
-  // ---------------------------------------------------------
+  // Helper pour extraire la stat à un niveau précis
   const computeStats = (stats, level) => {
     const i = Math.max(0, level - 1);
     const safe = (v) => (v === "-" || v == null ? 0 : Number(v));
@@ -55,25 +68,11 @@ export default function ChosenLineup() {
 
   const totalPower = (s) => s.ag + s.st + s.se + s.vo + s.fo + s.ba;
 
-  const getEffectiveLevel = (item) => {
-    let cap = levelCap;
-
-    if (gameMode === "tournament") {
-      cap = levelCap;
-    }
-
-    if (gameMode === "regular") {
-      if (item.category === "Character") {
-        cap = item.level >= 14 ? item.level : item.level + 2;
-      }
-    }
-
-    return Math.min(item.level, cap);
-  };
-
   // ---------------------------------------------------------
-  // VERSION C — MEILLEURS ITEMS PAR CATÉGORIE (FELIX HALIM)
+  // 3. BEST ITEMS (TRI INITIAL)
   // ---------------------------------------------------------
+  // Cette étape sert à sélectionner les 10 meilleurs items "potentiels"
+  // pour éviter de faire des boucles sur des items inutiles.
   const bestItems = useMemo(() => {
     if (!savedLevels || Object.keys(savedLevels).length === 0) return {};
 
@@ -96,7 +95,7 @@ export default function ChosenLineup() {
           name: data.name,
           category: data.type,
           level,
-          stats: data.stats,
+          stats: data.stats, // Stats brutes (tous les niveaux)
         });
       }
     });
@@ -105,18 +104,26 @@ export default function ChosenLineup() {
 
     Object.keys(cats).forEach((cat) => {
       const processed = cats[cat].map((item) => {
-        const eff = getEffectiveLevel(item);
+        // Pour le TRI, si on est en Regular, on considère le niveau Max (15)
+        // pour être sûr de garder les meilleurs items dans le top, même s'ils seront bridés après.
+        // Sinon (Tournament), on respecte le Cap strict dès le début.
+        let sortingCap = levelCap;
+        if (gameMode === "regular") sortingCap = 15;
+        if (gameMode === "tournament") sortingCap = levelCap;
+
+        const eff = Math.min(item.level, sortingCap);
         const s = computeStats(item.stats, eff);
+
         return {
           ...item,
           effectiveLevel: eff,
-          stats: s,
+          calculatedStats: s,
           totalPower: totalPower(s),
         };
       });
 
+      // On trie du plus fort au plus faible et on garde le top
       processed.sort((a, b) => b.totalPower - a.totalPower);
-
       result[cat] = processed;
     });
 
@@ -124,11 +131,12 @@ export default function ChosenLineup() {
   }, [savedLevels, levelCap, gameMode]);
 
   // ---------------------------------------------------------
-  // GENERATION DES LINEUPS (FILTRES APPLIQUÉS SUR LE TOTAL)
+  // 4. GENERATION DES LINEUPS (LOGIQUE CŒUR)
   // ---------------------------------------------------------
   const lineups = useMemo(() => {
     if (!bestItems.Character?.length) return [];
 
+    // On réduit le nombre d'items à tester pour la perf
     const chars = bestItems.Character.slice(0, 10);
     const rackets = bestItems.Racket.slice(0, 10);
     const grips = bestItems.Grip.slice(0, 10);
@@ -146,65 +154,101 @@ export default function ChosenLineup() {
 
     const result = [];
 
+    // Helper : Recalcule un item selon une limite (Cap) spécifique
+    const recomputeItem = (item, capLimit) => {
+      const realLevel = Math.min(item.level, capLimit);
+      const newStats = computeStats(item.stats, realLevel);
+      return {
+        ...item,
+        effectiveLevel: realLevel, // C'est ce niveau qui sera affiché
+        calculatedStats: newStats, // Et ces stats utilisées pour l'addition
+      };
+    };
+
+    // BOUCLE PRINCIPALE SUR LES PERSONNAGES
     chars.forEach((c) => {
-      rackets.forEach((r) => {
-        grips.forEach((g) => {
-          shoes.forEach((s) => {
-            wrists.forEach((w) => {
-              nutritions.forEach((n) => {
-                workouts.forEach((wk) => {
+      // --- LOGIQUE DU CAP DYNAMIQUE ---
+      let currentCap = levelCap; // Valeur par défaut (Tournament / Grand Tour)
+
+      if (gameMode === "regular") {
+        // RÈGLE : Cap = Character Level + 2 (Max 15)
+        // Si Character est lvl 8 => Cap = 10.
+        currentCap = Math.min(15, c.level + 2);
+      }
+
+      // 1. On applique le cap au personnage lui-même
+      const charItem = recomputeItem(c, currentCap);
+
+      // 2. On recalcule TOUS les équipements en fonction de ce cap spécifique
+      const currentRackets = rackets.map((i) => recomputeItem(i, currentCap));
+      const currentGrips = grips.map((i) => recomputeItem(i, currentCap));
+      const currentShoes = shoes.map((i) => recomputeItem(i, currentCap));
+      const currentWrists = wrists.map((i) => recomputeItem(i, currentCap));
+      const currentNutritions = nutritions.map((i) =>
+        recomputeItem(i, currentCap),
+      );
+      const currentWorkouts = workouts.map((i) => recomputeItem(i, currentCap));
+
+      // 3. Combinaisons
+      currentRackets.forEach((r) => {
+        currentGrips.forEach((g) => {
+          currentShoes.forEach((s) => {
+            currentWrists.forEach((w) => {
+              currentNutritions.forEach((n) => {
+                currentWorkouts.forEach((wk) => {
+                  // Somme
                   const stats = {
                     ag:
-                      c.stats.ag +
-                      r.stats.ag +
-                      g.stats.ag +
-                      s.stats.ag +
-                      w.stats.ag +
-                      n.stats.ag +
-                      wk.stats.ag,
+                      charItem.calculatedStats.ag +
+                      r.calculatedStats.ag +
+                      g.calculatedStats.ag +
+                      s.calculatedStats.ag +
+                      w.calculatedStats.ag +
+                      n.calculatedStats.ag +
+                      wk.calculatedStats.ag,
                     st:
-                      c.stats.st +
-                      r.stats.st +
-                      g.stats.st +
-                      s.stats.st +
-                      w.stats.st +
-                      n.stats.st +
-                      wk.stats.st,
+                      charItem.calculatedStats.st +
+                      r.calculatedStats.st +
+                      g.calculatedStats.st +
+                      s.calculatedStats.st +
+                      w.calculatedStats.st +
+                      n.calculatedStats.st +
+                      wk.calculatedStats.st,
                     se:
-                      c.stats.se +
-                      r.stats.se +
-                      g.stats.se +
-                      s.stats.se +
-                      w.stats.se +
-                      n.stats.se +
-                      wk.stats.se,
+                      charItem.calculatedStats.se +
+                      r.calculatedStats.se +
+                      g.calculatedStats.se +
+                      s.calculatedStats.se +
+                      w.calculatedStats.se +
+                      n.calculatedStats.se +
+                      wk.calculatedStats.se,
                     vo:
-                      c.stats.vo +
-                      r.stats.vo +
-                      g.stats.vo +
-                      s.stats.vo +
-                      w.stats.vo +
-                      n.stats.vo +
-                      wk.stats.vo,
+                      charItem.calculatedStats.vo +
+                      r.calculatedStats.vo +
+                      g.calculatedStats.vo +
+                      s.calculatedStats.vo +
+                      w.calculatedStats.vo +
+                      n.calculatedStats.vo +
+                      wk.calculatedStats.vo,
                     fo:
-                      c.stats.fo +
-                      r.stats.fo +
-                      g.stats.fo +
-                      s.stats.fo +
-                      w.stats.fo +
-                      n.stats.fo +
-                      wk.stats.fo,
+                      charItem.calculatedStats.fo +
+                      r.calculatedStats.fo +
+                      g.calculatedStats.fo +
+                      s.calculatedStats.fo +
+                      w.calculatedStats.fo +
+                      n.calculatedStats.fo +
+                      wk.calculatedStats.fo,
                     ba:
-                      c.stats.ba +
-                      r.stats.ba +
-                      g.stats.ba +
-                      s.stats.ba +
-                      w.stats.ba +
-                      n.stats.ba +
-                      wk.stats.ba,
+                      charItem.calculatedStats.ba +
+                      r.calculatedStats.ba +
+                      g.calculatedStats.ba +
+                      s.calculatedStats.ba +
+                      w.calculatedStats.ba +
+                      n.calculatedStats.ba +
+                      wk.calculatedStats.ba,
                   };
 
-                  // FILTRE SUR LE TOTAL DU LINEUP
+                  // Filtre Min Stats
                   if (
                     stats.ag >= minAg &&
                     stats.st >= minSt &&
@@ -214,7 +258,7 @@ export default function ChosenLineup() {
                     stats.ba >= minBa
                   ) {
                     result.push({
-                      items: { c, r, g, s, w, n, wk },
+                      items: { c: charItem, r, g, s, w, n, wk },
                       stats,
                       totalPower: totalPower(stats),
                     });
@@ -229,10 +273,13 @@ export default function ChosenLineup() {
 
     result.sort((a, b) => b.totalPower - a.totalPower);
 
+    // On limite à 200 résultats pour ne pas faire laguer l'affichage
     return result.slice(0, 200);
-  }, [bestItems, minStats]);
+  }, [bestItems, minStats, gameMode, levelCap]);
 
-  const dv = (v) => (v > 0 ? v : "-");
+  // ---------------------------------------------------------
+  // RENDER (AFFICHAGE)
+  // ---------------------------------------------------------
 
   if (!savedLevels || Object.keys(savedLevels).length === 0) {
     return (
@@ -304,8 +351,14 @@ export default function ChosenLineup() {
           )}
 
           {gameMode === "regular" && (
-            <Text style={{ fontStyle: "italic", color: "#666" }}>
-              Auto (Character Lvl + 2)
+            <Text
+              style={{
+                fontStyle: "italic",
+                color: "#007AFF",
+                fontWeight: "bold",
+              }}
+            >
+              Auto (Max = Character Level + 2)
             </Text>
           )}
 
@@ -361,29 +414,43 @@ export default function ChosenLineup() {
 
       {/* LISTE DES LINEUPS */}
       <View style={styles.lineupList}>
-        <Text style={styles.sectionTitle}>Possible Lineups</Text>
+        <Text style={styles.sectionTitle}>
+          Possible Lineups ({lineups.length})
+        </Text>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ paddingVertical: 10 }}
-        >
-          <View style={{ flexDirection: "row" }}>
-            {lineups.map((l, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[
-                  styles.horizontalItem,
-                  selectedLineup === l && styles.horizontalItemSelected,
-                ]}
-                onPress={() => setSelectedLineup(l)}
-              >
-                <Text style={styles.gridRank}>#{idx + 1}</Text>
-                <Text style={styles.gridPower}>Total {l.totalPower}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        {lineups.length === 0 ? (
+          <Text
+            style={{ textAlign: "center", color: "#999", marginVertical: 10 }}
+          >
+            No combination found matching these filters.
+          </Text>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ paddingVertical: 10 }}
+          >
+            <View style={{ flexDirection: "row" }}>
+              {lineups.map((l, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.horizontalItem,
+                    selectedLineup === l && styles.horizontalItemSelected,
+                  ]}
+                  onPress={() => setSelectedLineup(l)}
+                >
+                  <Text style={styles.gridRank}>#{idx + 1}</Text>
+                  <Text style={styles.gridPower}>Total {l.totalPower}</Text>
+                  {/* Petit indicateur visuel du niveau effectif du perso */}
+                  <Text style={{ fontSize: 9, color: "#666" }}>
+                    Char Lvl: {l.items.c.effectiveLevel}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
       </View>
 
       {/* LINEUP SELECTIONNÉ */}
@@ -407,7 +474,10 @@ export default function ChosenLineup() {
 
                 return (
                   <Text key={key} style={styles.itemName}>
-                    {fullNames[key]} — {item.name} (Lvl {item.effectiveLevel})
+                    {fullNames[key]} — {item.name}{" "}
+                    <Text style={{ color: "#007AFF" }}>
+                      (Lvl {item.effectiveLevel})
+                    </Text>
                   </Text>
                 );
               })}
@@ -500,6 +570,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
   },
+  textWhite: {
+    color: "white",
+  },
 
   filterTitle: {
     fontSize: 12,
@@ -553,18 +626,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  lineupBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  lineupBtnText: {
-    fontWeight: "bold",
-    color: "#333",
-  },
-
   sectionTitle: {
     fontSize: 16,
     fontWeight: "bold",
@@ -581,21 +642,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  itemRow: {
-    paddingVertical: 4,
-  },
   itemName: {
     fontSize: 13,
     fontWeight: "bold",
     color: "#333",
+    paddingVertical: 2,
   },
 
-  statsBox: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: "#fafafa",
-    borderRadius: 8,
-  },
   statLine: {
     fontSize: 13,
     marginBottom: 3,
@@ -606,20 +659,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#000",
     textAlign: "center",
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-
-  gridItem: {
-    width: "48%",
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    alignItems: "center",
   },
 
   gridRank: {
@@ -636,12 +675,23 @@ const styles = StyleSheet.create({
 
   horizontalItem: {
     width: 120,
-    height: 80,
+    height: 90, // Un peu plus haut pour le texte extra
     backgroundColor: "#f0f0f0",
     borderRadius: 10,
     marginRight: 10,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  horizontalItemSelected: {
+    backgroundColor: "#d0e8ff",
+    borderWidth: 2,
+    borderColor: "#007AFF",
+    transform: [{ scale: 1.05 }],
+    shadowColor: "#007AFF",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
 
   selectedRow: {
@@ -659,16 +709,5 @@ const styles = StyleSheet.create({
   rightColumn: {
     flex: 1,
     alignItems: "flex-end",
-  },
-
-  horizontalItemSelected: {
-    backgroundColor: "#d0e8ff",
-    borderWidth: 2,
-    borderColor: "#007AFF",
-    transform: [{ scale: 1.05 }],
-    shadowColor: "#007AFF",
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
   },
 });
