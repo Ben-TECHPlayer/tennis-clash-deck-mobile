@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "tennis-clash-deck",
+    "name": "Tennis Clash Deck",
     "slug": "tennis-clash-deck",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,7 +33,7 @@
         {
           "image": "./assets/images/tennis-clash.png",
           "imageWidth": 200,
-          "resizeMode": "contain",
+          "resizeMode": "cover",
           "backgroundColor": "#ffffff"
         }
       ]
