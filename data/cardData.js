@@ -73,6 +73,16 @@ import RocketLogo from "../assets/images/the-rocket.png";
 import ShieldLogo from "../assets/images/the-shield.png";
 import TomahawkLogo from "../assets/images/the-tomahawk.png";
 
+import AntioxidantsLogo from "../assets/images/antioxidants.png";
+import CarboloadLogo from "../assets/images/carboload.png";
+import IncreasedHydrationLogo from "../assets/images/increased-hydration.png";
+import KetoSourcingLogo from "../assets/images/keto-sourcing.png";
+import LeanProteinLogo from "../assets/images/lean-protein.png";
+import MacrobioticLogo from "../assets/images/macrobiotic.png";
+import NaturalEnergyLogo from "../assets/images/natural-energy.png";
+import StarterProteinLogo from "../assets/images/starter-protein.png";
+import VeganDietLogo from "../assets/images/vegan-diet.png";
+
 export const CARDS_DATA = {
   // --- LEGENDS ---
   "players/legends/database/Osaka": {

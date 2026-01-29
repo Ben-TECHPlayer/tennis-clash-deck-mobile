@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import {
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // Typage pour TypeScript
@@ -13,7 +13,7 @@ type GameCategory = "grand-tour" | "regular" | "tournaments";
 
 export default function GamesScreen() {
   const [selectedCategory, setSelectedCategory] =
-    useState<GameCategory>("regular");
+    useState<GameCategory>("grand-tour");
 
   // Données pour la liste des niveaux de tournoi (plus propre à afficher)
   const tournamentLevels = [

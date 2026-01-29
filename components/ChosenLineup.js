@@ -13,10 +13,8 @@ import { CARDS_DATA } from "../data/cardData";
 export default function ChosenLineup() {
   const { savedLevels } = useContext(LevelContext);
 
-  // --- ÉTATS ---
   const [gameMode, setGameMode] = useState("grand-tour");
   const [levelCap, setLevelCap] = useState(15);
-  const [selectedLineupIdx, setSelectedLineupIdx] = useState(0);
 
   const [minStats, setMinStats] = useState({
     ag: "",
@@ -27,25 +25,59 @@ export default function ChosenLineup() {
     ba: "",
   });
 
-  // --- EFFET : VALEURS PAR DÉFAUT SELON LE MODE ---
+  const [selectedLineup, setSelectedLineup] = useState(null);
+
   useEffect(() => {
-    if (gameMode === "tournament") setLevelCap(9); // Junior par défaut
+    if (gameMode === "tournament") setLevelCap(9);
     if (gameMode === "grand-tour") setLevelCap(15);
-    // Regular : pas besoin de setLevelCap car c'est calculé dynamiquement
-    setSelectedLineupIdx(0);
   }, [gameMode]);
 
   const handleMinStatChange = (stat, value) => {
     const numericValue = value.replace(/[^0-9]/g, "");
     setMinStats((prev) => ({ ...prev, [stat]: numericValue }));
-    setSelectedLineupIdx(0);
   };
 
-  // --- ALGORITHME DE CALCUL ---
-  const lineups = useMemo(() => {
-    if (!savedLevels || Object.keys(savedLevels).length === 0) return [];
+  // ---------------------------------------------------------
+  // VERSION FELIX HALIM — STATS + LEVEL CAP
+  // ---------------------------------------------------------
+  const computeStats = (stats, level) => {
+    const i = Math.max(0, level - 1);
+    const safe = (v) => (v === "-" || v == null ? 0 : Number(v));
+    return {
+      ag: safe(stats.agility?.[i]),
+      st: safe(stats.stamina?.[i]),
+      se: safe(stats.serve?.[i]),
+      vo: safe(stats.volley?.[i]),
+      fo: safe(stats.forehand?.[i]),
+      ba: safe(stats.backhand?.[i]),
+    };
+  };
 
-    const itemsByCategory = {
+  const totalPower = (s) => s.ag + s.st + s.se + s.vo + s.fo + s.ba;
+
+  const getEffectiveLevel = (item) => {
+    let cap = levelCap;
+
+    if (gameMode === "tournament") {
+      cap = levelCap;
+    }
+
+    if (gameMode === "regular") {
+      if (item.category === "Character") {
+        cap = item.level >= 14 ? item.level : item.level + 2;
+      }
+    }
+
+    return Math.min(item.level, cap);
+  };
+
+  // ---------------------------------------------------------
+  // VERSION C — MEILLEURS ITEMS PAR CATÉGORIE (FELIX HALIM)
+  // ---------------------------------------------------------
+  const bestItems = useMemo(() => {
+    if (!savedLevels || Object.keys(savedLevels).length === 0) return {};
+
+    const cats = {
       Character: [],
       Racket: [],
       Grip: [],
@@ -56,182 +88,151 @@ export default function ChosenLineup() {
     };
 
     Object.keys(savedLevels).forEach((path) => {
-      const trueLevel = savedLevels[path];
+      const level = savedLevels[path];
       const data = CARDS_DATA[path];
-      if (data && trueLevel > 0) {
-        itemsByCategory[data.type].push({
+      if (data && level > 0) {
+        cats[data.type].push({
           id: path,
           name: data.name,
           category: data.type,
-          trueLevel,
-          rawStats: data.stats,
+          level,
+          stats: data.stats,
         });
       }
     });
 
-    Object.keys(itemsByCategory).forEach((cat) => {
-      if (itemsByCategory[cat].length === 0) {
-        itemsByCategory[cat].push({
-          name: "-",
-          category: cat,
-          trueLevel: 0,
-          rawStats: {},
-        });
-      }
-    });
+    const result = {};
 
-    const generateCombinations = (catsIndex, currentBuild) => {
-      const categories = Object.keys(itemsByCategory);
-      if (catsIndex === categories.length) return [currentBuild];
-      const category = categories[catsIndex];
-      const items = itemsByCategory[category];
-      let results = [];
-      items.forEach((item) => {
-        results = results.concat(
-          generateCombinations(catsIndex + 1, {
-            ...currentBuild,
-            [category]: item,
-          }),
-        );
-      });
-      return results;
-    };
-
-    const rawLineups = generateCombinations(0, {});
-
-    let processedLineups = rawLineups.map((lineupItems, index) => {
-      let currentCap = levelCap;
-
-      // --- LOGIQUE REGULAR : Max Character Level + 2 ---
-      if (gameMode === "regular") {
-        const char = lineupItems["Character"];
-        // Si un perso est sélectionné, son cap est niveau + 2, sinon 15 par défaut
-        currentCap = char && char.trueLevel > 0 ? char.trueLevel + 2 : 15;
-      }
-
-      const totalStats = { ag: 0, st: 0, se: 0, vo: 0, fo: 0, ba: 0 };
-      const calculatedItems = {};
-
-      Object.keys(lineupItems).forEach((cat) => {
-        const item = lineupItems[cat];
-        const effectiveLevel =
-          item.trueLevel > 0 ? Math.min(item.trueLevel, currentCap) : 0;
-
-        const stats = {
-          ag: item.rawStats.agility?.[effectiveLevel - 1] || 0,
-          st: item.rawStats.stamina?.[effectiveLevel - 1] || 0,
-          se: item.rawStats.serve?.[effectiveLevel - 1] || 0,
-          vo: item.rawStats.volley?.[effectiveLevel - 1] || 0,
-          fo: item.rawStats.forehand?.[effectiveLevel - 1] || 0,
-          ba: item.rawStats.backhand?.[effectiveLevel - 1] || 0,
+    Object.keys(cats).forEach((cat) => {
+      const processed = cats[cat].map((item) => {
+        const eff = getEffectiveLevel(item);
+        const s = computeStats(item.stats, eff);
+        return {
+          ...item,
+          effectiveLevel: eff,
+          stats: s,
+          totalPower: totalPower(s),
         };
-        Object.keys(totalStats).forEach((k) => (totalStats[k] += stats[k]));
-        calculatedItems[cat] = { ...item, level: effectiveLevel, stats };
       });
 
-      const totalPower = Object.values(totalStats).reduce((a, b) => a + b, 0);
-      return {
-        id: index + 1,
-        items: calculatedItems,
-        totals: totalStats,
-        totalPower,
-      };
+      processed.sort((a, b) => b.totalPower - a.totalPower);
+
+      result[cat] = processed;
     });
 
-    // FILTRAGE
-    processedLineups = processedLineups.filter((l) => {
-      const minAg = parseInt(minStats.ag || 0);
-      const minSt = parseInt(minStats.st || 0);
-      const minSe = parseInt(minStats.se || 0);
-      const minVo = parseInt(minStats.vo || 0);
-      const minFo = parseInt(minStats.fo || 0);
-      const minBa = parseInt(minStats.ba || 0);
+    return result;
+  }, [savedLevels, levelCap, gameMode]);
 
-      return (
-        l.totals.ag >= minAg &&
-        l.totals.st >= minSt &&
-        l.totals.se >= minSe &&
-        l.totals.vo >= minVo &&
-        l.totals.fo >= minFo &&
-        l.totals.ba >= minBa
-      );
+  // ---------------------------------------------------------
+  // GENERATION DES LINEUPS (FILTRES APPLIQUÉS SUR LE TOTAL)
+  // ---------------------------------------------------------
+  const lineups = useMemo(() => {
+    if (!bestItems.Character?.length) return [];
+
+    const chars = bestItems.Character.slice(0, 10);
+    const rackets = bestItems.Racket.slice(0, 10);
+    const grips = bestItems.Grip.slice(0, 10);
+    const shoes = bestItems.Shoe.slice(0, 5);
+    const wrists = bestItems.Wristband.slice(0, 5);
+    const nutritions = bestItems.Nutrition.slice(0, 5);
+    const workouts = bestItems.Workout.slice(0, 5);
+
+    const minAg = parseInt(minStats.ag || 0);
+    const minSt = parseInt(minStats.st || 0);
+    const minSe = parseInt(minStats.se || 0);
+    const minVo = parseInt(minStats.vo || 0);
+    const minFo = parseInt(minStats.fo || 0);
+    const minBa = parseInt(minStats.ba || 0);
+
+    const result = [];
+
+    chars.forEach((c) => {
+      rackets.forEach((r) => {
+        grips.forEach((g) => {
+          shoes.forEach((s) => {
+            wrists.forEach((w) => {
+              nutritions.forEach((n) => {
+                workouts.forEach((wk) => {
+                  const stats = {
+                    ag:
+                      c.stats.ag +
+                      r.stats.ag +
+                      g.stats.ag +
+                      s.stats.ag +
+                      w.stats.ag +
+                      n.stats.ag +
+                      wk.stats.ag,
+                    st:
+                      c.stats.st +
+                      r.stats.st +
+                      g.stats.st +
+                      s.stats.st +
+                      w.stats.st +
+                      n.stats.st +
+                      wk.stats.st,
+                    se:
+                      c.stats.se +
+                      r.stats.se +
+                      g.stats.se +
+                      s.stats.se +
+                      w.stats.se +
+                      n.stats.se +
+                      wk.stats.se,
+                    vo:
+                      c.stats.vo +
+                      r.stats.vo +
+                      g.stats.vo +
+                      s.stats.vo +
+                      w.stats.vo +
+                      n.stats.vo +
+                      wk.stats.vo,
+                    fo:
+                      c.stats.fo +
+                      r.stats.fo +
+                      g.stats.fo +
+                      s.stats.fo +
+                      w.stats.fo +
+                      n.stats.fo +
+                      wk.stats.fo,
+                    ba:
+                      c.stats.ba +
+                      r.stats.ba +
+                      g.stats.ba +
+                      s.stats.ba +
+                      w.stats.ba +
+                      n.stats.ba +
+                      wk.stats.ba,
+                  };
+
+                  // FILTRE SUR LE TOTAL DU LINEUP
+                  if (
+                    stats.ag >= minAg &&
+                    stats.st >= minSt &&
+                    stats.se >= minSe &&
+                    stats.vo >= minVo &&
+                    stats.fo >= minFo &&
+                    stats.ba >= minBa
+                  ) {
+                    result.push({
+                      items: { c, r, g, s, w, n, wk },
+                      stats,
+                      totalPower: totalPower(stats),
+                    });
+                  }
+                });
+              });
+            });
+          });
+        });
+      });
     });
 
-    return processedLineups.sort((a, b) => b.totalPower - a.totalPower);
-  }, [savedLevels, levelCap, gameMode, minStats]);
+    result.sort((a, b) => b.totalPower - a.totalPower);
 
-  const activeLineup = lineups[selectedLineupIdx] || null;
-  const dv = (val) => (val > 0 ? val : "-");
+    return result.slice(0, 200);
+  }, [bestItems, minStats]);
 
-  // --- RENDU UI CONDITIONNEL POUR LE CAP ---
-  const renderLevelCapControls = () => {
-    // CAS 1 : REGULAR (Auto)
-    if (gameMode === "regular") {
-      return (
-        <View style={styles.capControlContainer}>
-          <Text style={{ fontStyle: "italic", color: "#666" }}>
-            Auto (Character Lvl + 2)
-          </Text>
-        </View>
-      );
-    }
-
-    // CAS 2 : TOURNAMENT (Rookie, Junior, Challenger, Master)
-    if (gameMode === "tournament") {
-      const tournaments = [
-        { label: "Rook (6)", val: 6 },
-        { label: "Jun (9)", val: 9 },
-        { label: "Chal (12)", val: 12 },
-        { label: "Mast (15)", val: 15 },
-      ];
-      return (
-        <View style={styles.tournamentBtnContainer}>
-          {tournaments.map((t) => (
-            <TouchableOpacity
-              key={t.val}
-              onPress={() => setLevelCap(t.val)}
-              style={[
-                styles.tournBtn,
-                levelCap === t.val && styles.tournBtnActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tournBtnText,
-                  levelCap === t.val && styles.textWhite,
-                ]}
-              >
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      );
-    }
-
-    // CAS 3 : GRAND TOUR (Standard +/-)
-    return (
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <TouchableOpacity
-          onPress={() => setLevelCap((c) => Math.max(1, c - 1))}
-          style={styles.capBtn}
-        >
-          <Text style={{ fontSize: 18, fontWeight: "bold" }}>-</Text>
-        </TouchableOpacity>
-        <Text
-          style={{ marginHorizontal: 15, fontWeight: "bold", fontSize: 16 }}
-        >
-          {levelCap}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setLevelCap((c) => Math.min(15, c + 1))}
-          style={styles.capBtn}
-        >
-          <Text style={{ fontSize: 18, fontWeight: "bold" }}>+</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const dv = (v) => (v > 0 ? v : "-");
 
   if (!savedLevels || Object.keys(savedLevels).length === 0) {
     return (
@@ -244,11 +245,8 @@ export default function ChosenLineup() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-    >
-      {/* 1. CONFIGURATION */}
+    <ScrollView style={styles.container}>
+      {/* CONFIG */}
       <View style={styles.configCard}>
         <View style={styles.modeRow}>
           {["grand-tour", "regular", "tournament"].map((m) => (
@@ -273,13 +271,72 @@ export default function ChosenLineup() {
           ))}
         </View>
 
-        {/* LIGNE CAP CORRIGÉE */}
         <View style={styles.capRow}>
           <Text style={styles.label}>Level Cap:</Text>
-          {/* Affichage dynamique selon le mode */}
-          {renderLevelCapControls()}
+
+          {gameMode === "tournament" && (
+            <View style={styles.tournamentBtnContainer}>
+              {[
+                { label: "Rook (6)", val: 6 },
+                { label: "Jun (9)", val: 9 },
+                { label: "Chal (12)", val: 12 },
+                { label: "Mast (15)", val: 15 },
+              ].map((t) => (
+                <TouchableOpacity
+                  key={t.val}
+                  onPress={() => setLevelCap(t.val)}
+                  style={[
+                    styles.tournBtn,
+                    levelCap === t.val && styles.tournBtnActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tournBtnText,
+                      levelCap === t.val && styles.textWhite,
+                    ]}
+                  >
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {gameMode === "regular" && (
+            <Text style={{ fontStyle: "italic", color: "#666" }}>
+              Auto (Character Lvl + 2)
+            </Text>
+          )}
+
+          {gameMode === "grand-tour" && (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <TouchableOpacity
+                onPress={() => setLevelCap((c) => Math.max(1, c - 1))}
+                style={styles.capBtn}
+              >
+                <Text style={{ fontSize: 18, fontWeight: "bold" }}>-</Text>
+              </TouchableOpacity>
+              <Text
+                style={{
+                  marginHorizontal: 15,
+                  fontWeight: "bold",
+                  fontSize: 16,
+                }}
+              >
+                {levelCap}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setLevelCap((c) => Math.min(15, c + 1))}
+                style={styles.capBtn}
+              >
+                <Text style={{ fontSize: 18, fontWeight: "bold" }}>+</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
+        {/* FILTERS */}
         <Text style={styles.filterTitle}>Min Stats Filter (0-100)</Text>
         <View style={styles.filterGrid}>
           {["ag", "st", "se", "vo", "fo", "ba"].map((statKey) => (
@@ -302,169 +359,94 @@ export default function ChosenLineup() {
         </View>
       </View>
 
-      {/* 2. ETAT VIDE */}
-      {lineups.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Text
-            style={{
-              color: "#D32F2F",
-              fontWeight: "bold",
-              textAlign: "center",
-            }}
-          >
-            No lineup matches these stats.{"\n"}Try lowering the filters.
-          </Text>
-        </View>
-      ) : (
-        <>
-          {/* 3. SLIDER HORIZONTAL */}
-          <View style={{ height: 60, marginBottom: 5 }}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{
-                alignItems: "center",
-                paddingHorizontal: 10,
-              }}
-            >
-              {lineups.map((l, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() => setSelectedLineupIdx(idx)}
-                  style={[
-                    styles.topLineupBtn,
-                    selectedLineupIdx === idx && styles.topLineupBtnActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.topLineupText,
-                      selectedLineupIdx === idx && styles.textWhite,
-                    ]}
-                  >
-                    #{idx + 1}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.topLineupPower,
-                      selectedLineupIdx === idx && styles.textWhite,
-                    ]}
-                  >
-                    {l.totalPower}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+      {/* LISTE DES LINEUPS */}
+      <View style={styles.lineupList}>
+        <Text style={styles.sectionTitle}>Possible Lineups</Text>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ paddingVertical: 10 }}
+        >
+          <View style={{ flexDirection: "row" }}>
+            {lineups.map((l, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.horizontalItem,
+                  selectedLineup === l && styles.horizontalItemSelected,
+                ]}
+                onPress={() => setSelectedLineup(l)}
+              >
+                <Text style={styles.gridRank}>#{idx + 1}</Text>
+                <Text style={styles.gridPower}>Total {l.totalPower}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
+        </ScrollView>
+      </View>
 
-          {/* 4. TABLEAU DÉTAILLÉ */}
-          {activeLineup && (
-            <View style={styles.detailCard}>
-              <Text style={styles.detailHeader}>
-                Selected Lineup #{selectedLineupIdx + 1}
-              </Text>
+      {/* LINEUP SELECTIONNÉ */}
+      {selectedLineup && (
+        <View style={styles.selectedCard}>
+          <Text style={styles.sectionTitle}>Selected Lineup</Text>
 
-              <View style={styles.rowHeader}>
-                <Text style={[styles.colName, styles.headerText]}>Item</Text>
-                <Text style={styles.colStatHeader}>Ag</Text>
-                <Text style={styles.colStatHeader}>St</Text>
-                <Text style={styles.colStatHeader}>Se</Text>
-                <Text style={styles.colStatHeader}>Vo</Text>
-                <Text style={styles.colStatHeader}>Fo</Text>
-                <Text style={styles.colStatHeader}>Ba</Text>
-              </View>
-
-              {[
-                "Character",
-                "Racket",
-                "Grip",
-                "Shoe",
-                "Wristband",
-                "Nutrition",
-                "Workout",
-              ].map((cat, i) => {
-                const item = activeLineup.items[cat] || {
-                  name: "-",
-                  level: 0,
-                  stats: {},
-                };
-                const s = item.stats || {
-                  ag: 0,
-                  st: 0,
-                  se: 0,
-                  vo: 0,
-                  fo: 0,
-                  ba: 0,
+          <View style={styles.selectedRow}>
+            {/* LEFT COLUMN — ITEMS */}
+            <View style={styles.leftColumn}>
+              {Object.entries(selectedLineup.items).map(([key, item]) => {
+                const fullNames = {
+                  c: "Character",
+                  r: "Racket",
+                  g: "Grip",
+                  s: "Shoe",
+                  w: "Wristband",
+                  n: "Nutrition",
+                  wk: "Workout",
                 };
 
                 return (
-                  <View
-                    key={cat}
-                    style={[styles.row, i % 2 === 0 ? styles.rowAlt : null]}
-                  >
-                    <View style={styles.colName}>
-                      <Text style={styles.itemName} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      <Text style={styles.catName}>
-                        {cat} {item.level > 0 ? `(Lvl ${item.level})` : ""}
-                      </Text>
-                    </View>
-                    <Text style={styles.colStat}>{dv(s.ag)}</Text>
-                    <Text style={styles.colStat}>{dv(s.st)}</Text>
-                    <Text style={styles.colStat}>{dv(s.se)}</Text>
-                    <Text style={styles.colStat}>{dv(s.vo)}</Text>
-                    <Text style={styles.colStat}>{dv(s.fo)}</Text>
-                    <Text style={styles.colStat}>{dv(s.ba)}</Text>
-                  </View>
+                  <Text key={key} style={styles.itemName}>
+                    {fullNames[key]} — {item.name} (Lvl {item.effectiveLevel})
+                  </Text>
                 );
               })}
-
-              <View style={styles.rowTotal}>
-                <Text
-                  style={[
-                    styles.colName,
-                    { fontWeight: "bold", color: "white" },
-                  ]}
-                >
-                  TOTAL
-                </Text>
-                <Text style={styles.colStatTotal}>
-                  {activeLineup.totals.ag}
-                </Text>
-                <Text style={styles.colStatTotal}>
-                  {activeLineup.totals.st}
-                </Text>
-                <Text style={styles.colStatTotal}>
-                  {activeLineup.totals.se}
-                </Text>
-                <Text style={styles.colStatTotal}>
-                  {activeLineup.totals.vo}
-                </Text>
-                <Text style={styles.colStatTotal}>
-                  {activeLineup.totals.fo}
-                </Text>
-                <Text style={styles.colStatTotal}>
-                  {activeLineup.totals.ba}
-                </Text>
-              </View>
-
-              <View style={styles.powerBox}>
-                <Text style={styles.powerText}>
-                  TOTAL POWER: {activeLineup.totalPower}
-                </Text>
-              </View>
             </View>
-          )}
-        </>
+
+            {/* RIGHT COLUMN — STATS */}
+            <View style={styles.rightColumn}>
+              <Text style={styles.statLine}>
+                Agility: {selectedLineup.stats.ag}
+              </Text>
+              <Text style={styles.statLine}>
+                Stamina: {selectedLineup.stats.st}
+              </Text>
+              <Text style={styles.statLine}>
+                Serve: {selectedLineup.stats.se}
+              </Text>
+              <Text style={styles.statLine}>
+                Volley: {selectedLineup.stats.vo}
+              </Text>
+              <Text style={styles.statLine}>
+                Forehand: {selectedLineup.stats.fo}
+              </Text>
+              <Text style={styles.statLine}>
+                Backhand: {selectedLineup.stats.ba}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.totalPower}>
+            TOTAL POWER: {selectedLineup.totalPower}
+          </Text>
+        </View>
       )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  scrollContent: { paddingBottom: 50 },
+  container: { flex: 1, backgroundColor: "#ffffff" },
 
   configCard: {
     backgroundColor: "white",
@@ -486,7 +468,6 @@ const styles = StyleSheet.create({
   modeText: { fontSize: 11, fontWeight: "bold", color: "#555" },
   modeTextActive: { color: "white" },
 
-  // Modification ici pour supporter les boutons de tournoi
   capRow: { flexDirection: "column", alignItems: "center", marginBottom: 15 },
   label: { fontWeight: "bold", fontSize: 14, color: "#333", marginBottom: 5 },
   capBtn: {
@@ -498,7 +479,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
 
-  // Styles spécifiques Tournoi
   tournamentBtnContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -512,8 +492,14 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     margin: 2,
   },
-  tournBtnActive: { backgroundColor: "#007AFF" },
-  tournBtnText: { fontSize: 10, fontWeight: "bold", color: "#333" },
+  tournBtnActive: {
+    backgroundColor: "#007AFF",
+  },
+  tournBtnText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#333",
+  },
 
   filterTitle: {
     fontSize: 12,
@@ -525,12 +511,17 @@ const styles = StyleSheet.create({
     borderTopColor: "#eee",
     paddingTop: 10,
   },
+
   filterGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  filterItem: { width: "31%", marginBottom: 10, alignItems: "center" },
+  filterItem: {
+    width: "31%",
+    marginBottom: 10,
+    alignItems: "center",
+  },
   filterLabel: {
     fontSize: 10,
     fontWeight: "bold",
@@ -554,91 +545,130 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  emptyBox: { padding: 30, alignItems: "center", justifyContent: "center" },
-
-  topLineupBtn: {
-    width: 50,
-    height: 50,
+  lineupList: {
     backgroundColor: "white",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  topLineupBtnActive: { backgroundColor: "#007AFF", borderColor: "#007AFF" },
-  topLineupText: { fontSize: 10, fontWeight: "bold", color: "#333" },
-  topLineupPower: { fontSize: 12, fontWeight: "bold", color: "#007AFF" },
-  textWhite: { color: "white" },
-
-  detailCard: {
-    backgroundColor: "white",
-    marginHorizontal: 10,
-    marginBottom: 20,
+    margin: 10,
+    padding: 15,
     borderRadius: 10,
-    padding: 10,
-    elevation: 3,
+    elevation: 2,
   },
-  detailHeader: {
-    fontSize: 16,
+
+  lineupBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  lineupBtnText: {
     fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 10,
     color: "#333",
   },
 
-  rowHeader: {
-    flexDirection: "row",
-    borderBottomWidth: 2,
-    borderColor: "#333",
-    paddingBottom: 5,
-    marginBottom: 5,
-  },
-  row: {
-    flexDirection: "row",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderColor: "#f0f0f0",
-    alignItems: "center",
-  },
-  rowAlt: { backgroundColor: "#f9f9f9" },
-  rowTotal: {
-    flexDirection: "row",
-    backgroundColor: "#333",
-    paddingVertical: 10,
-    marginTop: 5,
-    borderRadius: 4,
-    alignItems: "center",
-  },
-
-  colName: { flex: 1, paddingRight: 5 },
-  colStatHeader: {
-    width: 30,
-    textAlign: "center",
-    fontSize: 11,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: "bold",
-    color: "#555",
-  },
-  colStat: { width: 30, textAlign: "center", fontSize: 11, color: "#333" },
-  colStatTotal: {
-    width: 30,
+    marginBottom: 10,
     textAlign: "center",
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "white",
+    color: "#333",
   },
 
-  headerText: { fontSize: 12, fontWeight: "bold", color: "#333" },
-  itemName: { fontSize: 12, fontWeight: "bold", color: "#000" },
-  catName: { fontSize: 10, color: "#888" },
+  selectedCard: {
+    backgroundColor: "white",
+    margin: 10,
+    padding: 15,
+    borderRadius: 10,
+    elevation: 2,
+  },
 
-  powerBox: {
-    marginTop: 15,
-    alignItems: "center",
-    backgroundColor: "#e3f2fd",
-    padding: 12,
+  itemRow: {
+    paddingVertical: 4,
+  },
+  itemName: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#333",
+  },
+
+  statsBox: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: "#fafafa",
     borderRadius: 8,
   },
-  powerText: { color: "#007AFF", fontWeight: "bold", fontSize: 16 },
+  statLine: {
+    fontSize: 13,
+    marginBottom: 3,
+  },
+  totalPower: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#000",
+    textAlign: "center",
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  gridItem: {
+    width: "48%",
+    backgroundColor: "#f0f0f0",
+    paddingVertical: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    alignItems: "center",
+  },
+
+  gridRank: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+
+  gridPower: {
+    marginTop: 5,
+    fontSize: 13,
+    color: "#555",
+  },
+
+  horizontalItem: {
+    width: 120,
+    height: 80,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 10,
+    marginRight: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  selectedRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    width: "100%",
+  },
+
+  leftColumn: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+
+  rightColumn: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+
+  horizontalItemSelected: {
+    backgroundColor: "#d0e8ff",
+    borderWidth: 2,
+    borderColor: "#007AFF",
+    transform: [{ scale: 1.05 }],
+    shadowColor: "#007AFF",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
 });

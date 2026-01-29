@@ -16,17 +16,32 @@ const { width } = Dimensions.get("window");
 
 // Données des slides
 const SLIDES = [
-  // {
-  //   id: 1,
-  //   type: "kyrgios",
-  //   title: "KYRGIOS IS BACK!!!",
-  //   subtitle: "GO TO PLAY WITH HIM!!!",
-  //   cta: "Let's go!!!",
-  //   link: "/card", // Lien simplifié pour la démo
-  //   bgColor: "#1E90FF", // bg-blue
-  // },
   {
     id: 1,
+    type: "season-trends",
+    title: "LUNAR NEW YEAR",
+    subtitle: "JANUARY 26-FEBRUARY 9",
+    bgImage: require("../../assets/images/new-year-lunar.jpg"),
+  },
+  {
+    id: 2,
+    type: "grand-tour",
+    title: "AUSTRALIAN TOUR",
+    subtitle: "DECEMBER 29-FEBRUARY 9",
+    cta: "Go to play!!!",
+    bgImage: require("../../assets/images/ao-open.png"),
+  },
+  {
+    id: 3,
+    type: "tournament",
+    title: "AUSTRALIAN OPEN",
+    subtitle: "JANUARY 29-FEBRUARY 2",
+    cta: "Last chance for us to win this AO Tournament!",
+    link: "/games",
+    bgImage: require("../../assets/images/ao-open.png"),
+  },
+  {
+    id: 4,
     type: "legends",
     title: "LEGENDS ARE HERE!!!",
     subtitle: "MEET OSAKA & MORE...",
@@ -36,21 +51,12 @@ const SLIDES = [
     textColor: "#FFF",
   },
   {
-    id: 2,
-    type: "tournament",
-    title: "AUSTRALIAN OPEN",
-    subtitle: "JANUARY 22-26",
-    cta: "Attend tournament",
-    link: "/games",
-    bgImage: require("../../assets/images/ao-open.png"),
-  },
-  {
-    id: 3,
+    id: 5,
     type: "champions",
     title: "The champions are here!",
     subtitle: "GO TO PLAY",
     cta: "Go to it!!!",
-    link: "/lineup",
+    link: "/card",
     bgImage: require("../../assets/images/cover.jpg"),
   },
 ];
@@ -81,13 +87,15 @@ export default function HomeScreen() {
     setCurrentSlide(slideIndex);
   };
 
-  const handleNavigation = (path: string) => {
+  const handleNavigation = (path?: string) => {
+    if (!path) return;
     // Si c'est un lien interne, on utilise router.push
     // Si la route n'existe pas encore, attention aux erreurs !
     try {
       // Pour l'instant, redirigeons vers les onglets existants
-      if (path.includes("card")) router.push("/(tabs)/lineup" as any);
-      else if (path.includes("games")) router.push("/(tabs)/clubs" as any);
+      if (path.includes("card")) router.push("/(tabs)/cards" as any);
+      else if (path.includes("games")) router.push("/(tabs)/games" as any);
+      else if (path.includes("clubs")) router.push("/(tabs)/clubs" as any);
       else router.push("/(tabs)/lineup" as any);
     } catch (e) {
       console.warn("Route non trouvée", path);
@@ -115,6 +123,54 @@ export default function HomeScreen() {
                 resizeMode="contain"
               >
                 {/* 2. SLIDE LEGENDS */}
+                {slide.type === "season-trends" && (
+                  <View style={styles.slideContent}>
+                    <Text style={[styles.title, { color: "#FFF" }]}>
+                      {slide.title}
+                    </Text>
+                    <Text style={[styles.subtitle, { color: "#FFF" }]}>
+                      {slide.subtitle}
+                    </Text>
+                    {/* <TouchableOpacity
+                      style={styles.buttonSecondary}
+                      // onPress={() => handleNavigation(slide.link)}
+                    >
+                      <Text style={styles.buttonTextSecondary}>
+                        {slide.cta}
+                      </Text>
+                    </TouchableOpacity> */}
+                  </View>
+                )}
+
+                {/* 3. SLIDE GRAND TOUR */}
+                {slide.type === "grand-tour" && (
+                  <View style={styles.slideContent}>
+                    <Text style={styles.aoLogo}>AO</Text>
+                    <Text style={styles.title}>{slide.title}</Text>
+                    <Text style={styles.subtitle}>📅 {slide.subtitle}</Text>
+                    <Text
+                      style={styles.buttonAccent}
+                      // onPress={() => handleNavigation(slide.link)}
+                    >
+                      <Text style={styles.buttonText}>{slide.cta}</Text>
+                    </Text>
+                  </View>
+                )}
+
+                {slide.type === "tournament" && (
+                  <View style={styles.slideContent}>
+                    <Text style={styles.aoLogo}>AO</Text>
+                    <Text style={styles.title}>{slide.title}</Text>
+                    <Text style={styles.subtitle}>📅 {slide.subtitle}</Text>
+                    <TouchableOpacity
+                      style={styles.buttonAccent}
+                      onPress={() => handleNavigation(slide.link)}
+                    >
+                      <Text style={styles.buttonText}>{slide.cta}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {slide.type === "legends" && (
                   <View style={styles.slideContent}>
                     <Text style={[styles.title, { color: "#FFF" }]}>
@@ -130,21 +186,6 @@ export default function HomeScreen() {
                       <Text style={styles.buttonTextSecondary}>
                         {slide.cta}
                       </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* 3. SLIDE GRAND TOUR */}
-                {slide.type === "tournament" && (
-                  <View style={styles.slideContent}>
-                    <Text style={styles.aoLogo}>AO</Text>
-                    <Text style={styles.title}>{slide.title}</Text>
-                    <Text style={styles.subtitle}>📅 {slide.subtitle}</Text>
-                    <TouchableOpacity
-                      style={styles.buttonAccent}
-                      onPress={() => handleNavigation(slide.link)}
-                    >
-                      <Text style={styles.buttonText}>{slide.cta}</Text>
                     </TouchableOpacity>
                   </View>
                 )}

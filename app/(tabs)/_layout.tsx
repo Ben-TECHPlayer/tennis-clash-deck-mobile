@@ -1,6 +1,7 @@
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Link, Tabs } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Image, Platform, StyleSheet, TouchableOpacity } from "react-native";
 // 1. On importe le hook pour gérer les zones de sécurité
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,7 +24,11 @@ export default function TabLayout() {
         headerLeft: () => (
           <Link href="/" asChild>
             <TouchableOpacity style={styles.headerButton}>
-              <Text style={styles.benText}>Ben.</Text>
+              {/* <Image> */}
+              <Image
+                source={require("../../assets/images/tennis-clash.png")}
+                style={{ width: 50, height: 50 }}
+              />
             </TouchableOpacity>
           </Link>
         ),
@@ -33,29 +38,75 @@ export default function TabLayout() {
           position: Platform.OS === "ios" ? "absolute" : "relative",
           borderTopWidth: 1,
           borderColor: "#eee",
-          backgroundColor: "#fff", // Important pour cacher ce qu'il y a derrière
+          backgroundColor: "#fff",
 
-          // 3. LA CORRECTION EST ICI :
-          // On ajoute l'espace de sécurité à la hauteur de base (60)
           height: 60 + insets.bottom,
-          // On ajoute du "rembourrage" en bas pour remonter les icônes
           paddingBottom: insets.bottom,
-          paddingTop: 10, // Un peu d'espace en haut des icônes
-          elevation: 0, // Enlève l'ombre sur Android pour un look plus plat
+          paddingTop: 10,
+          elevation: 0,
         },
         tabBarActiveTintColor: "#007AFF",
         tabBarLabelStyle: {
           fontWeight: "bold",
           fontSize: 10,
-          marginBottom: 5, // Remonte un peu le texte si besoin
+          marginBottom: 5,
         },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="cards" options={{ title: "Cards" }} />
-      <Tabs.Screen name="lineup" options={{ title: "Lineup" }} />
-      <Tabs.Screen name="clubs" options={{ title: "Clubs" }} />
-      <Tabs.Screen name="games" options={{ title: "Games" }} />
+      {/* 1. HOME */}
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color }) => (
+            <FontAwesome name="home" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* 2. CARDS (Icône de cartes superposées) */}
+      <Tabs.Screen
+        name="cards"
+        options={{
+          title: "Cards",
+          tabBarIcon: ({ color }) => (
+            <FontAwesome name="clone" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* 3. LINEUP (Icône de groupe/équipe) */}
+      <Tabs.Screen
+        name="lineup"
+        options={{
+          title: "Lineup",
+          tabBarIcon: ({ color }) => (
+            <FontAwesome name="users" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* 4. CLUBS (Icône de bouclier/badge) */}
+      <Tabs.Screen
+        name="clubs"
+        options={{
+          title: "Clubs",
+          tabBarIcon: ({ color }) => (
+            <FontAwesome name="shield" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* 5. GAMES (Icône de trophée ou manette) */}
+      <Tabs.Screen
+        name="games"
+        options={{
+          title: "Games",
+          tabBarIcon: ({ color }) => (
+            <FontAwesome name="trophy" size={24} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
@@ -65,15 +116,5 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     justifyContent: "center",
     marginTop: Platform.OS === "android" ? 10 : 0,
-  },
-  benText: {
-    fontSize: 32,
-    fontWeight: "700",
-    fontFamily: Platform.select({
-      ios: "System",
-      android: "sans-serif-medium",
-      default: "System",
-    }),
-    color: "#007AFF",
   },
 });
