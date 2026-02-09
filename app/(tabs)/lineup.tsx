@@ -1,5 +1,6 @@
 import React, { useContext, useState } from "react";
 import {
+  Alert,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -20,10 +21,24 @@ export default function LineupScreen() {
 
   // Demander à l'utilisateur de confirmer s'il veut réinitialiser les données
   const handleReset = () => {
-    if (window.confirm("Tout effacer ?")) {
-      resetAllLevels("Are you sure you want to reset all cards to Level 0?");
-      // setSelectedCardTable(null);
-    }
+    Alert.alert(
+      "Reset All", // Titre de la popup
+      "Are you sure you want to reset all cards to Level 0?", // Message
+      [
+        {
+          text: "Cancel",
+          style: "cancel", // Bouton Annuler
+        },
+        {
+          text: "Yes, Reset",
+          style: "destructive", // En rouge sur iOS
+          onPress: () => {
+            // C'est ici qu'on lance l'action si l'utilisateur dit OUI
+            resetAllLevels();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -31,6 +46,11 @@ export default function LineupScreen() {
       {/* HEADER AVEC TOGGLE */}
       <View style={styles.header}>
         <Text style={styles.title}>Dream Lineup Calculator</Text>
+
+        {/* Bouton Reset (Positionné en absolu à droite) */}
+        <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
+          <Text style={styles.resetText}>Reset All</Text>
+        </TouchableOpacity>
 
         <View style={styles.toggleContainer}>
           {/* Groupe des boutons centraux */}
@@ -69,11 +89,6 @@ export default function LineupScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Bouton Reset (Positionné en absolu à droite) */}
-          <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
-            <Text style={styles.resetText}>Reset All</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -141,8 +156,6 @@ const styles = StyleSheet.create({
 
   // Styles spécifiques pour le bouton Reset
   resetBtn: {
-    position: "absolute", // Sort du flux pour se placer librement
-    right: 0, // Se colle tout à droite
     backgroundColor: "red",
     paddingVertical: 8,
     paddingHorizontal: 12,
