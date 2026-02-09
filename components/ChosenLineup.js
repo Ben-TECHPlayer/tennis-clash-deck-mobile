@@ -16,6 +16,9 @@ export default function ChosenLineup() {
   const [gameMode, setGameMode] = useState("grand-tour"); // "grand-tour" | "regular" | "tournament"
   const [levelCap, setLevelCap] = useState(15);
 
+  // --- NOUVEAU STATE POUR LE FILTRE PERSONNAGE ---
+  const [charFilter, setCharFilter] = useState("All");
+
   const [minStats, setMinStats] = useState({
     ag: "",
     st: "",
@@ -30,20 +33,16 @@ export default function ChosenLineup() {
   // ---------------------------------------------------------
   // 1. EFFET DE RESET (SYNCHRONISATION)
   // ---------------------------------------------------------
-  // Dès que le mode change ou que la liste des résultats change,
-  // on désélectionne le lineup affiché pour éviter d'afficher un "fantôme" (ex: Kyrgios lvl 15 en mode Regular).
   useEffect(() => {
     setSelectedLineup(null);
-  }, [gameMode, levelCap, minStats]);
-  // Note: On dépend ici des inputs, mais on pourrait dépendre de 'lineups' directement.
+  }, [gameMode, levelCap, minStats, charFilter]); // Ajout de charFilter ici pour reset si on change de perso
 
   // ---------------------------------------------------------
   // 2. GESTION DES CAPS PAR DÉFAUT
   // ---------------------------------------------------------
   useEffect(() => {
-    if (gameMode === "tournament") setLevelCap(9); // Junior par défaut
+    if (gameMode === "tournament") setLevelCap(9);
     if (gameMode === "grand-tour") setLevelCap(15);
-    // En regular, le cap est dynamique (Char + 2), mais on met 15 par défaut pour l'UI
     if (gameMode === "regular") setLevelCap(15);
   }, [gameMode]);
 
@@ -52,7 +51,6 @@ export default function ChosenLineup() {
     setMinStats((prev) => ({ ...prev, [stat]: numericValue }));
   };
 
-  // Helper pour extraire la stat à un niveau précis
   const computeStats = (stats, level) => {
     const i = Math.max(0, level - 1);
     const safe = (v) => (v === "-" || v == null ? 0 : Number(v));
@@ -71,8 +69,6 @@ export default function ChosenLineup() {
   // ---------------------------------------------------------
   // 3. BEST ITEMS (TRI INITIAL)
   // ---------------------------------------------------------
-  // Cette étape sert à sélectionner les 10 meilleurs items "potentiels"
-  // pour éviter de faire des boucles sur des items inutiles.
   const bestItems = useMemo(() => {
     if (!savedLevels || Object.keys(savedLevels).length === 0) return {};
 
@@ -95,7 +91,7 @@ export default function ChosenLineup() {
           name: data.name,
           category: data.type,
           level,
-          stats: data.stats, // Stats brutes (tous les niveaux)
+          stats: data.stats,
         });
       }
     });
@@ -104,9 +100,6 @@ export default function ChosenLineup() {
 
     Object.keys(cats).forEach((cat) => {
       const processed = cats[cat].map((item) => {
-        // Pour le TRI, si on est en Regular, on considère le niveau Max (15)
-        // pour être sûr de garder les meilleurs items dans le top, même s'ils seront bridés après.
-        // Sinon (Tournament), on respecte le Cap strict dès le début.
         let sortingCap = levelCap;
         if (gameMode === "regular") sortingCap = 15;
         if (gameMode === "tournament") sortingCap = levelCap;
@@ -122,7 +115,6 @@ export default function ChosenLineup() {
         };
       });
 
-      // On trie du plus fort au plus faible et on garde le top
       processed.sort((a, b) => b.totalPower - a.totalPower);
       result[cat] = processed;
     });
@@ -136,8 +128,18 @@ export default function ChosenLineup() {
   const lineups = useMemo(() => {
     if (!bestItems.Character?.length) return [];
 
-    // On réduit le nombre d'items à tester pour la perf
-    const chars = bestItems.Character.slice(0, 10);
+    // --- LOGIQUE MODIFIÉE POUR LE FILTRE PERSONNAGE ---
+    let charsSource = bestItems.Character || [];
+
+    // Si un filtre est actif, on ne garde que ce personnage
+    if (charFilter !== "All") {
+      charsSource = charsSource.filter((c) => c.name === charFilter);
+    }
+
+    // On réduit le nombre d'items à tester pour la perf (Top 10 après filtre)
+    const chars = charsSource.slice(0, 10);
+    // --------------------------------------------------
+
     const rackets = bestItems.Racket.slice(0, 10);
     const grips = bestItems.Grip.slice(0, 10);
     const shoes = bestItems.Shoe.slice(0, 5);
@@ -154,32 +156,24 @@ export default function ChosenLineup() {
 
     const result = [];
 
-    // Helper : Recalcule un item selon une limite (Cap) spécifique
     const recomputeItem = (item, capLimit) => {
       const realLevel = Math.min(item.level, capLimit);
       const newStats = computeStats(item.stats, realLevel);
       return {
         ...item,
-        effectiveLevel: realLevel, // C'est ce niveau qui sera affiché
-        calculatedStats: newStats, // Et ces stats utilisées pour l'addition
+        effectiveLevel: realLevel,
+        calculatedStats: newStats,
       };
     };
 
-    // BOUCLE PRINCIPALE SUR LES PERSONNAGES
     chars.forEach((c) => {
-      // --- LOGIQUE DU CAP DYNAMIQUE ---
-      let currentCap = levelCap; // Valeur par défaut (Tournament / Grand Tour)
-
+      let currentCap = levelCap;
       if (gameMode === "regular") {
-        // RÈGLE : Cap = Character Level + 2 (Max 15)
-        // Si Character est lvl 8 => Cap = 10.
         currentCap = Math.min(15, c.level + 2);
       }
 
-      // 1. On applique le cap au personnage lui-même
       const charItem = recomputeItem(c, currentCap);
 
-      // 2. On recalcule TOUS les équipements en fonction de ce cap spécifique
       const currentRackets = rackets.map((i) => recomputeItem(i, currentCap));
       const currentGrips = grips.map((i) => recomputeItem(i, currentCap));
       const currentShoes = shoes.map((i) => recomputeItem(i, currentCap));
@@ -189,14 +183,12 @@ export default function ChosenLineup() {
       );
       const currentWorkouts = workouts.map((i) => recomputeItem(i, currentCap));
 
-      // 3. Combinaisons
       currentRackets.forEach((r) => {
         currentGrips.forEach((g) => {
           currentShoes.forEach((s) => {
             currentWrists.forEach((w) => {
               currentNutritions.forEach((n) => {
                 currentWorkouts.forEach((wk) => {
-                  // Somme
                   const stats = {
                     ag:
                       charItem.calculatedStats.ag +
@@ -248,7 +240,6 @@ export default function ChosenLineup() {
                       wk.calculatedStats.ba,
                   };
 
-                  // Filtre Min Stats
                   if (
                     stats.ag >= minAg &&
                     stats.st >= minSt &&
@@ -272,10 +263,16 @@ export default function ChosenLineup() {
     });
 
     result.sort((a, b) => b.totalPower - a.totalPower);
-
-    // On limite à 200 résultats pour ne pas faire laguer l'affichage
     return result.slice(0, 200);
-  }, [bestItems, minStats, gameMode, levelCap]);
+  }, [bestItems, minStats, gameMode, levelCap, charFilter]); // Ajout dépendance charFilter
+
+  // --- NOUVEAU : LISTE DES NOMS DE PERSONNAGES ---
+  const availableCharacters = useMemo(() => {
+    if (!bestItems.Character) return [];
+    const names = bestItems.Character.map((c) => c.name);
+    // On enlève les doublons et on trie
+    return [...new Set(names)].sort();
+  }, [bestItems]);
 
   // ---------------------------------------------------------
   // RENDER (AFFICHAGE)
@@ -317,6 +314,56 @@ export default function ChosenLineup() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* --- NOUVEAU : UI FILTRE PERSONNAGE (SCROLL HORIZONTAL) --- */}
+        <View style={{ marginBottom: 15 }}>
+          <Text style={styles.label}>Filter Character:</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ flexDirection: "row" }}
+          >
+            {/* Option "All" */}
+            <TouchableOpacity
+              onPress={() => setCharFilter("All")}
+              style={[
+                styles.charBtn,
+                charFilter === "All" && styles.charBtnActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.charText,
+                  charFilter === "All" && styles.textWhite,
+                ]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+
+            {/* Liste des persos */}
+            {availableCharacters.map((name) => (
+              <TouchableOpacity
+                key={name}
+                onPress={() => setCharFilter(name)}
+                style={[
+                  styles.charBtn,
+                  charFilter === name && styles.charBtnActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.charText,
+                    charFilter === name && styles.textWhite,
+                  ]}
+                >
+                  {name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+        {/* ---------------------------------------------------------- */}
 
         <View style={styles.capRow}>
           <Text style={styles.label}>Level Cap:</Text>
@@ -422,7 +469,9 @@ export default function ChosenLineup() {
           <Text
             style={{ textAlign: "center", color: "#999", marginVertical: 10 }}
           >
-            No combination found matching these filters.
+            {charFilter !== "All"
+              ? `No lineup found for ${charFilter} with these stats.`
+              : "No combination found matching these filters."}
           </Text>
         ) : (
           <ScrollView
@@ -445,6 +494,17 @@ export default function ChosenLineup() {
                   {/* Petit indicateur visuel du niveau effectif du perso */}
                   <Text style={{ fontSize: 9, color: "#666" }}>
                     Char Lvl: {l.items.c.effectiveLevel}
+                  </Text>
+                  {/* Petit indicateur du nom du perso */}
+                  <Text
+                    style={{
+                      fontSize: 9,
+                      color: "#007AFF",
+                      fontWeight: "bold",
+                      marginTop: 2,
+                    }}
+                  >
+                    {l.items.c.name}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -537,6 +597,26 @@ const styles = StyleSheet.create({
   modeBtnActive: { backgroundColor: "#333" },
   modeText: { fontSize: 11, fontWeight: "bold", color: "#555" },
   modeTextActive: { color: "white" },
+
+  // --- Styles pour le filtre Char ---
+  charBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#f0f0f0",
+    marginRight: 6,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  charBtnActive: {
+    backgroundColor: "#007AFF",
+    borderColor: "#0056b3",
+  },
+  charText: {
+    fontSize: 12,
+    color: "#333",
+  },
+  // ---------------------------------
 
   capRow: { flexDirection: "column", alignItems: "center", marginBottom: 15 },
   label: { fontWeight: "bold", fontSize: 14, color: "#333", marginBottom: 5 },
@@ -675,7 +755,7 @@ const styles = StyleSheet.create({
 
   horizontalItem: {
     width: 120,
-    height: 90, // Un peu plus haut pour le texte extra
+    height: 100, // Un peu plus haut pour le nom du perso
     backgroundColor: "#f0f0f0",
     borderRadius: 10,
     marginRight: 10,

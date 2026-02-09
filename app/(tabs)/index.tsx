@@ -19,29 +19,29 @@ const SLIDES = [
   {
     id: 1,
     type: "season-trends",
-    title: "LUNAR NEW YEAR",
-    subtitle: "JANUARY 26-FEBRUARY 9",
-    bgImage: require("../../assets/images/new-year-lunar.jpg"),
+    title: "CARNAVAL SEASON",
+    subtitle: "FEBRUARY 9-23",
+    bgImage: require("../../assets/images/carnaval-season.jpg"),
   },
   {
     id: 2,
     type: "grand-tour",
-    title: "AUSTRALIAN TOUR",
-    subtitle: "DECEMBER 29-FEBRUARY 9",
+    title: "KYRGIOS TOUR",
+    subtitle: "FEBRUARY 9-23",
     cta: "Go to play!!!",
-    bgImage: require("../../assets/images/ao-open.png"),
+    bgImage: require("../../assets/images/kyrgios-open.png"),
   },
+  // {
+  //   id: 3,
+  //   type: "tournament",
+  //   title: "CARNAVAL OPEN",
+  //   subtitle: "FEBRUARY 12-16",
+  //   cta: "Go to Party Time in Brazil!!",
+  //   link: "/games",
+  //   bgImage: require("../../assets/images/carnaval-open.png"),
+  // },
   {
     id: 3,
-    type: "tournament",
-    title: "AUSTRALIAN OPEN",
-    subtitle: "JANUARY 29-FEBRUARY 2",
-    cta: "Last chance for us to win this AO Tournament!",
-    link: "/games",
-    bgImage: require("../../assets/images/ao-open.png"),
-  },
-  {
-    id: 4,
     type: "legends",
     title: "LEGENDS ARE HERE!!!",
     subtitle: "MEET OSAKA & MORE...",
@@ -51,7 +51,7 @@ const SLIDES = [
     textColor: "#FFF",
   },
   {
-    id: 5,
+    id: 4,
     type: "champions",
     title: "The champions are here!",
     subtitle: "GO TO PLAY",
@@ -122,14 +122,14 @@ export default function HomeScreen() {
                 style={styles.slide}
                 resizeMode="contain"
               >
-                {/* 2. SLIDE LEGENDS */}
+                {/* 1. SLIDE SEASON */}
                 {slide.type === "season-trends" && (
                   <View style={styles.slideContent}>
                     <Text style={[styles.title, { color: "#FFF" }]}>
                       {slide.title}
                     </Text>
                     <Text style={[styles.subtitle, { color: "#FFF" }]}>
-                      {slide.subtitle}
+                      📅 {slide.subtitle}
                     </Text>
                     {/* <TouchableOpacity
                       style={styles.buttonSecondary}
@@ -145,7 +145,6 @@ export default function HomeScreen() {
                 {/* 3. SLIDE GRAND TOUR */}
                 {slide.type === "grand-tour" && (
                   <View style={styles.slideContent}>
-                    <Text style={styles.aoLogo}>AO</Text>
                     <Text style={styles.title}>{slide.title}</Text>
                     <Text style={styles.subtitle}>📅 {slide.subtitle}</Text>
                     <Text
@@ -157,9 +156,8 @@ export default function HomeScreen() {
                   </View>
                 )}
 
-                {slide.type === "tournament" && (
+                {/* {slide.type === "tournament" && (
                   <View style={styles.slideContent}>
-                    <Text style={styles.aoLogo}>AO</Text>
                     <Text style={styles.title}>{slide.title}</Text>
                     <Text style={styles.subtitle}>📅 {slide.subtitle}</Text>
                     <TouchableOpacity
@@ -169,7 +167,7 @@ export default function HomeScreen() {
                       <Text style={styles.buttonText}>{slide.cta}</Text>
                     </TouchableOpacity>
                   </View>
-                )}
+                )} */}
 
                 {slide.type === "legends" && (
                   <View style={styles.slideContent}>
