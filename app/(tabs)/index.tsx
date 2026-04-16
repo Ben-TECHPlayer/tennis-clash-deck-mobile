@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   ImageBackground,
@@ -19,29 +19,36 @@ const SLIDES = [
   {
     id: 1,
     type: "season-trends",
-    title: "CARNAVAL SEASON",
-    subtitle: "FEBRUARY 9-23",
-    bgImage: require("../../assets/images/carnaval-season.jpg"),
+    title: "BUBLIK SEASON",
+    subtitle: "MARCH 28-APRIL 20",
+    bgImage: require("../../assets/images/bublik.jpg"),
   },
   {
     id: 2,
     type: "grand-tour",
-    title: "KYRGIOS TOUR",
-    subtitle: "FEBRUARY 9-23",
+    title: "LEGENDS OPEN",
+    subtitle: "APRIL 13-MAY 11",
     cta: "Go to play!!!",
-    bgImage: require("../../assets/images/kyrgios-open.png"),
+    bgImage: require("../../assets/images/legends-open.jpg"),
   },
-  // {
-  //   id: 3,
-  //   type: "tournament",
-  //   title: "CARNAVAL OPEN",
-  //   subtitle: "FEBRUARY 12-16",
-  //   cta: "Go to Party Time in Brazil!!",
-  //   link: "/games",
-  //   bgImage: require("../../assets/images/carnaval-open.png"),
-  // },
   {
     id: 3,
+    type: "new-legend-trends",
+    title: "BUBLIK IS HERE!!!",
+    cta: "Go to play with Bublik!!!",
+    bgImage: require("../../assets/images/bublik.jpg"),
+  },
+  {
+    id: 4,
+    type: "tournament",
+    title: "INTERNAZIONALI BNL D'ITALIA!",
+    subtitle: "APRIL 16-21",
+    cta: "Win this tournament and go to ESports Tour",
+    link: "/games",
+    bgImage: require("../../assets/images/roma-tournament.jpg"),
+  },
+  {
+    id: 5,
     type: "legends",
     title: "LEGENDS ARE HERE!!!",
     subtitle: "MEET OSAKA & MORE...",
@@ -51,7 +58,7 @@ const SLIDES = [
     textColor: "#FFF",
   },
   {
-    id: 4,
+    id: 6,
     type: "champions",
     title: "The champions are here!",
     subtitle: "GO TO PLAY",
@@ -142,7 +149,7 @@ export default function HomeScreen() {
                   </View>
                 )}
 
-                {/* 3. SLIDE GRAND TOUR */}
+                {/* 2. SLIDE GRAND TOUR */}
                 {slide.type === "grand-tour" && (
                   <View style={styles.slideContent}>
                     <Text style={styles.title}>{slide.title}</Text>
@@ -156,7 +163,28 @@ export default function HomeScreen() {
                   </View>
                 )}
 
-                {/* {slide.type === "tournament" && (
+                {/* 3. NEW LEGEND SLIDE */}
+                {slide.type === "new-legend-trends" && (
+                  <View style={styles.slideContent}>
+                    <Text style={[styles.title, { color: "#FFF" }]}>
+                      {slide.title}
+                    </Text>
+                    <Text style={[styles.buttonSecondary, {color: "#FFF", fontWeight: "600"}]}>
+                        {slide.cta}
+                      </Text>
+                    {/* <TouchableOpacity
+                      style={styles.buttonSecondary}
+                      // onPress={() => handleNavigation(slide.link)}
+                    >
+                      <Text style={styles.buttonTextSecondary}>
+                        {slide.cta}
+                      </Text>
+                    </TouchableOpacity> */}
+                  </View>
+                )}
+
+                {/* 4. SLIDE TOURNAMENT */}
+                {slide.type === "tournament" && (
                   <View style={styles.slideContent}>
                     <Text style={styles.title}>{slide.title}</Text>
                     <Text style={styles.subtitle}>📅 {slide.subtitle}</Text>
@@ -167,7 +195,7 @@ export default function HomeScreen() {
                       <Text style={styles.buttonText}>{slide.cta}</Text>
                     </TouchableOpacity>
                   </View>
-                )} */}
+                )}
 
                 {slide.type === "legends" && (
                   <View style={styles.slideContent}>
