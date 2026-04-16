@@ -43,7 +43,7 @@ const SLIDES = [
     type: "tournament",
     title: "INTERNAZIONALI BNL D'ITALIA!",
     subtitle: "APRIL 16-21",
-    cta: "Win this tournament and go to ESports Tour",
+    cta: "Win this tournament and go to ESports Roma Tournament in May!!",
     link: "/games",
     bgImage: require("../../assets/images/roma-tournament.jpg"),
   },
