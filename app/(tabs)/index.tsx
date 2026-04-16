@@ -21,7 +21,7 @@ const SLIDES = [
     type: "season-trends",
     title: "BUBLIK SEASON",
     subtitle: "MARCH 28-APRIL 20",
-    bgImage: require("../../assets/images/bublik.jpg"),
+    bgImage: require("../../assets/images/bublik-legend.jpg"),
   },
   {
     id: 2,
@@ -36,7 +36,7 @@ const SLIDES = [
     type: "new-legend-trends",
     title: "BUBLIK IS HERE!!!",
     cta: "Go to play with Bublik!!!",
-    bgImage: require("../../assets/images/bublik.jpg"),
+    bgImage: require("../../assets/images/bublik-legend.jpg"),
   },
   {
     id: 4,
